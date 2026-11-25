@@ -147,17 +147,75 @@ do
         return true
     end
 
+    local function stateTableExists()
+        local rows = awaitSQL(function(callback)
+            MySQL.Async.fetchAll([[
+                SELECT TABLE_NAME FROM information_schema.TABLES
+                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'slom_events_state'
+            ]], {}, callback)
+        end)
+        if type(rows) ~= 'table' then return nil end
+        return rows[1] ~= nil
+    end
+
+    local function readState()
+        return awaitSQL(function(callback)
+            MySQL.Async.fetchAll('SELECT revision,payload FROM slom_events_state WHERE id=1', {}, callback)
+        end)
+    end
+
+    local function loadState()
+        local exists = stateTableExists()
+        if exists == nil then
+            return nil, 'تعذر فحص جدول الفعاليات. تحقق من اتصال mysql-async وقاعدة البيانات المحددة.'
+        end
+        if not exists then
+            awaitSQL(function(callback)
+                MySQL.Async.execute([[
+                    CREATE TABLE IF NOT EXISTS slom_events_state (
+                        id TINYINT UNSIGNED NOT NULL,
+                        revision BIGINT UNSIGNED NOT NULL DEFAULT 0,
+                        payload LONGTEXT NOT NULL,
+                        PRIMARY KEY (id)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                ]], {}, callback)
+            end)
+            if not stateTableExists() then
+                return nil, 'تعذر إنشاء جدول الفعاليات. امنح حساب mysql-async صلاحية CREATE على قاعدة الخادم، أو نفذ install.sql بحساب يملكها.'
+            end
+        end
+
+        local rows = readState()
+        if type(rows) ~= 'table' then
+            return nil, 'تعذرت قراءة جدول الفعاليات. تحقق من صلاحية SELECT ومن بنية الجدول.'
+        end
+        if not rows[1] then
+            local initial = {
+                version=1, nextEvent=0, events={}, players={}, ledger={}, logs={},
+                schedules={}, purchases={}, automatic=false, created=0
+            }
+            awaitSQL(function(callback)
+                MySQL.Async.execute(
+                    'INSERT IGNORE INTO slom_events_state (id, revision, payload) VALUES (1, 0, @payload)',
+                    {['@payload']=json.encode(initial)}, callback)
+            end)
+            rows = readState()
+            if type(rows) ~= 'table' or not rows[1] then
+                return nil, 'تعذر إضافة سجل الفعاليات الأولي. تحقق من صلاحية INSERT لحساب mysql-async.'
+            end
+        end
+        return rows[1]
+    end
+
     MySQL.ready(function()
         CreateThread(function()
             local valid, result = pcall(validConfig)
             if not valid or not result then E.diagnostic('إعدادات النظام غير صالحة.') return end
-            local rows = awaitSQL(function(callback)
-                MySQL.Async.fetchAll('SELECT revision,payload FROM slom_events_state WHERE id=1', {}, callback)
-            end)
-            local row = rows and rows[1]
-            local ok, state = pcall(json.decode, row and row.payload or '')
+            local row, reason = loadState()
+            if not row then E.diagnostic(reason) return end
+            local ok, state = pcall(json.decode, row.payload)
             if not ok or type(state) ~= 'table' or state.version ~= 1 or not tonumber(row.revision) then
-                E.diagnostic('تعذر تحميل البيانات. تحقق من تنفيذ install.sql.')
+                E.diagnostic('سجل الفعاليات الحالي غير صالح. راجع نسخته الاحتياطية وبنية الجدول.')
                 return
             end
             state.templates = state.templates or {}
