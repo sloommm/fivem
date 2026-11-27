@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>الفعاليات</title>
+<link rel="stylesheet" href="style.css">
+<script src="app.js" defer></script>
+</head>
+<body>
+<section id="tablet" hidden aria-label="تابلت الفعاليات">
+  <aside>
+    <div class="brand"><img id="logo" hidden alt=""><span id="brand">الفعاليات</span></div>
+    <nav id="menu" aria-label="أقسام الفعاليات"></nav>
+    <footer id="credit"></footer>
+  </aside>
+  <main>
+    <header>
+      <span id="mode"></span>
+      <div class="row">
+        <button id="switch" hidden></button>
+        <button id="refresh" aria-label="تحديث البيانات" title="تحديث البيانات">↻</button>
+        <button id="close" aria-label="إغلاق التابلت" title="إغلاق التابلت">×</button>
+      </div>
+    </header>
+    <div class="body">
+      <h1 id="heading"></h1>
+      <div id="content"></div>
+    </div>
+  </main>
+</section>
+<section id="hud" hidden aria-live="off"></section>
+<div id="notice" role="status" hidden></div>
+<dialog id="dialog">
+  <form id="dialogForm">
+    <h2 id="dialogHeading"></h2>
+    <div id="dialogBody"></div>
+    <div class="row dialog-actions">
+      <button class="primary" type="submit">تأكيد</button>
+      <button id="dismiss" type="button">رجوع</button>
+    </div>
+  </form>
+</dialog>
+</body>
+</html>
